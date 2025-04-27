@@ -1,7 +1,13 @@
 package main
 
+import (
+	"fmt"
+	"iosipoff/url-shortener/cmd/url-shortener/internal/config"
+)
+
 func main() {
-	//TODO: init config: cleanenv
+	cfg := config.MustLoad()
+	fmt.Printf("config: %+v", cfg)
 
 	//TODO: init logger: slog
 
