@@ -32,5 +32,4 @@ local.env
 Thumbs.db
 
 # Project specific
-storage/
 *.db
