@@ -2,6 +2,7 @@ package main
 
 import (
 	"iosipoff/url-shortener/cmd/url-shortener/internal/config"
+	"iosipoff/url-shortener/cmd/url-shortener/internal/storage/sqlite"
 	"log/slog"
 	"os"
 )
@@ -20,7 +21,13 @@ func main() {
 	log.Info("starting url-shortener", slog.String("env", cfg.Env))
 	log.Debug("debug messages are enabled")
 
-	//TODO: init storage: sqlite
+	storage, err := sqlite.New(cfg.StoragePath)
+	if err != nil {
+		log.Error("failed to init storage", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	_ = storage
 
 	//TODO: init router: chi, chi render
 
