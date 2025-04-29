@@ -3,6 +3,8 @@ package sqlite
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -13,6 +15,11 @@ type Storage struct {
 
 func New(storagePath string) (*Storage, error) {
 	const op = "storage.sqlite.New"
+
+	dir := filepath.Dir(storagePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
 
 	db, err := sql.Open("sqlite3", storagePath)
 	if err != nil {
