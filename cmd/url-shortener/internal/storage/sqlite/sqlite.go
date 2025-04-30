@@ -40,7 +40,7 @@ func New(storagePath string) (*Storage, error) {
 	return &Storage{db: db}, nil
 }
 
-func (s *Storage) SaveUrl(urlToSave string, alias string) (uint, error) {
+func (s *Storage) SaveURL(urlToSave string, alias string) (uint, error) {
 	const op = "storage.sqlite.SaveURL"
 
 	url := URL{
