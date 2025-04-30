@@ -1,18 +1,23 @@
 package sqlite
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"iosipoff/url-shortener/cmd/url-shortener/internal/storage"
 	"os"
 	"path/filepath"
 
-	"github.com/mattn/go-sqlite3"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
+type URL struct {
+	ID    uint   `gorm:"primaryKey;column:id"`
+	Alias string `gorm:"uniqueIndex;column:alias"`
+	URL   string `gorm:"column:url"`
+}
+
 type Storage struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 func New(storagePath string) (*Storage, error) {
@@ -23,70 +28,45 @@ func New(storagePath string) (*Storage, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	db, err := sql.Open("sqlite3", storagePath)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-	stmt, err := db.Prepare(`
-	CREATE TABLE IF NOT EXISTS url(
-		id INTEGER PRIMARY KEY,
-		alias TEXT NOT NULL UNIQUE,
-		url TEXT NOT NULL);
-	CREATE INDEX IF NOT EXISTS idx_alias ON url(alias);
-	`)
+	db, err := gorm.Open((sqlite.Open(storagePath)), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	_, err = stmt.Exec()
-	if err != nil {
+	if err := db.AutoMigrate(&URL{}); err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return &Storage{db: db}, nil
 }
 
-func (s *Storage) SaveUrl(urlToSave string, alias string) (int64, error) {
+func (s *Storage) SaveUrl(urlToSave string, alias string) (uint, error) {
 	const op = "storage.sqlite.SaveURL"
 
-	stmt, err := s.db.Prepare("INSERT INTO url(url, alias) VALUES(?, ?)")
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", op, err)
+	url := URL{
+		Alias: alias,
+		URL:   urlToSave,
 	}
 
-	res, err := stmt.Exec(urlToSave, alias)
-	if err != nil {
-		if sqliteErr, ok := err.(sqlite3.Error); ok && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-			return 0, fmt.Errorf("%s: %w", op, storage.ErrURLExists)
-		}
-
-		return 0, fmt.Errorf("%s: %w", op, err)
+	res := s.db.Create(&url)
+	if res.Error != nil {
+		return 0, fmt.Errorf("%s: %w", op, res.Error)
 	}
 
-	id, err := res.LastInsertId()
-	if err != nil {
-		return 0, fmt.Errorf("%s: failed to get last insert id: %w", op, err)
-	}
-
-	return id, nil
+	return url.ID, nil
 }
 
 func (s *Storage) GetUrl(alias string) (string, error) {
 	const op = "storage.sqlite.GetUrl"
 
-	stmt, err := s.db.Prepare("SELECT url FROM url WHERE alias = ?")
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", op, err)
+	var url URL
+	res := s.db.Where(&URL{Alias: alias}).First(&url)
+	if res.Error != nil {
+		if res.Error == gorm.ErrRecordNotFound {
+			return "", fmt.Errorf("%s: %w", op, storage.ErrURLNotFound)
+		}
+		return "", fmt.Errorf("%s: %w", op, res.Error)
 	}
 
-	var resUrl string
-	err = stmt.QueryRow(alias).Scan(&resUrl)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", op, err)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("%s: %w", op, storage.ErrURLNotFound)
-	}
-
-	return resUrl, nil
+	return url.URL, nil
 }
